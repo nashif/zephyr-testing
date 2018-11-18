@@ -80,7 +80,7 @@ class CheckPatch(ComplianceTest):
 
 
 class KconfigCheck(ComplianceTest):
-    _name = "kconfig"
+    _name = "Kconfig"
 
     def run(self):
         self.prepare()
@@ -111,7 +111,7 @@ class KconfigCheck(ComplianceTest):
 
 
 class Documentation(ComplianceTest):
-    _name = "documentation"
+    _name = "Documentation"
 
     def run(self):
         self.prepare()
@@ -124,7 +124,7 @@ class Documentation(ComplianceTest):
                 self.case.result._elem.text = log.decode('utf8')
 
 class GitLint(ComplianceTest):
-    _name = "gitlint"
+    _name = "Gitlint"
 
     def run(self):
         self.prepare()
@@ -143,7 +143,7 @@ class GitLint(ComplianceTest):
 
 
 class Identity(ComplianceTest):
-    _name = "identity"
+    _name = "Identity/Emails"
 
     def run(self):
         self.prepare()
@@ -215,14 +215,43 @@ def parse_args():
                         help="Github repository")
     parser.add_argument('-p', '--pull-request', default=0, type=int,
                         help="Pull request number")
+
+    parser.add_argument('-s', '--status', action="store_true", help="Set status to pending")
+    parser.add_argument('-S', '--sha', default=None, help="Commit SHA")
     return parser.parse_args()
+
+
+
+def set_status(gh, repo, sha):
+
+    repo = gh.get_repo(repo)
+    commit = repo.get_commit(sha)
+    for Test in ComplianceTest.__subclasses__():
+        t = Test(None, "")
+        print("Creating status for %s" %(t._name))
+        commit.create_status('pending',
+                             'https://docs.zephyrproject.org/latest/contribute/contribute_guidelines.html?highlight=gitlint#commit-guidelines',
+                             'Check in progress',
+                             '{}'.format(t._name))
+
 
 def main():
     args = parse_args()
+
+
+    github_token = ''
+    gh = None
+    if args.github:
+        github_token = os.environ['GH_TOKEN']
+        gh = Github(github_token)
+
+    if args.status and args.sha != None and args.repo and gh:
+        set_status(gh, args.repo, args.sha)
+
     if not args.commits:
         sys.exit(1)
-    suite = TestSuite("Compliance")
 
+    suite = TestSuite("Compliance")
     for Test in ComplianceTest.__subclasses__():
         t = Test(suite, args.commits)
         t.run()
@@ -235,10 +264,9 @@ def main():
 
 
     if args.github:
-        github_token = os.environ['GH_TOKEN']
-        gh = Github(github_token)
         repo = gh.get_repo(args.repo)
         pr = repo.get_pull(int(args.pull_request))
+        commit = repo.get_commit(args.sha)
 
         comment = "Found the following issues, please fix and resubmit:\n\n"
         for case in suite:
@@ -248,6 +276,17 @@ def main():
                 comment += "```\n"
                 comment += ("{}\n".format(case.result._elem.text))
                 comment += "```\n"
+
+                commit.create_status('failure',
+                                     'https://docs.zephyrproject.org/latest/contribute/contribute_guidelines.html?highlight=gitlint#commit-guidelines',
+                                     'Failed validation',
+                                     '{}'.format(case.name))
+            else:
+                commit.create_status('success',
+                                     'https://docs.zephyrproject.org/latest/contribute/contribute_guidelines.html?highlight=gitlint#commit-guidelines',
+                                     'checks passed',
+                                     '{}'.format(case.name))
+
         if args.repo and args.pull_request:
             pr.create_issue_comment(comment)
 
