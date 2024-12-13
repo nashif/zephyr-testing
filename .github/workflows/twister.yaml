@@ -24,6 +24,7 @@ jobs:
     uses: ./.github/workflows/compliance.yml
 
   twister-build-prep:
+    if: always() && github.event_name == 'pull_request' &&  ${{ contains(github.event.*.labels.*.name, 'Complinance: False Positive') }}
     needs: compliance-check
     uses: ./.github/workflows/twister-prep.yaml
 
