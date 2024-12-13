@@ -249,6 +249,7 @@ jobs:
     if: always()
     name: "Check Twister Status"
     needs:
+      - compliance-check
       - twister-build-prep
       - twister-build
     uses: ./.github/workflows/ready-to-merge.yml
